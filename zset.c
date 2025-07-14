@@ -22,7 +22,7 @@ _zslDeleteNode(skiplist *zsl, skiplistNode *x, skiplistNode **update) {
 }
 
 skiplistNode *
-_zslCreateNode(int level, double score, objid ele) {
+_zslCreateNode(int level, int64_t score, objid ele) {
     skiplistNode *zn =
         malloc(sizeof(*zn)+level*sizeof(struct skiplistLevel));
     zn->score = score;
@@ -67,9 +67,10 @@ int _zslRandomLevel(void) {
 }
 
 zset *
-zsetCreate() {
+zsetCreate(int reverse) {
     zset *zset = malloc(sizeof(*zset));
     zset->zsl = _zslCreate();
+    zset->reverse = reverse;
     return zset;
 }
 
@@ -81,7 +82,7 @@ zslFree(zset *zset) {
 }
 
 skiplistNode *
-zslUpdateScore(skiplist *zsl, double curscore, objid ele, double newscore) {
+zslUpdateScore(skiplist *zsl, int64_t curscore, objid ele, int64_t newscore) {
     skiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
     int i;
 
@@ -126,12 +127,12 @@ zslUpdateScore(skiplist *zsl, double curscore, objid ele, double newscore) {
 }
 
 skiplistNode *
-zslInsert(skiplist *zsl, double score, objid ele) {
+zslInsert(skiplist *zsl, int64_t score, objid ele) {
     skiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
     unsigned long rank[ZSKIPLIST_MAXLEVEL];
     int i, level;
 
-    assert(!isnan(score));
+    assert(score != NAN);
     x = zsl->header;
     for (i = zsl->level-1; i >= 0; i--) {
         /* store rank that is crossed to reach the insert position */
@@ -184,7 +185,7 @@ zslInsert(skiplist *zsl, double score, objid ele) {
 }
 
 int 
-zslDelete(skiplist *zsl, double score, objid ele, skiplistNode **node) {
+zslDelete(skiplist *zsl, int64_t score, objid ele, skiplistNode **node) {
     skiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
     int i;
 
@@ -212,3 +213,100 @@ zslDelete(skiplist *zsl, double score, objid ele, skiplistNode **node) {
     }
     return 0; /* not found */
 }
+
+skiplistNode* zslGetElementByRank(skiplist *zsl, unsigned long rank) {
+    skiplistNode *x;
+    unsigned long traversed = 0;
+    int i;
+
+    x = zsl->header;
+    for (i = zsl->level-1; i >= 0; i--) {
+        while (x->level[i].forward && (traversed + x->level[i].span) <= rank)
+        {
+            traversed += x->level[i].span;
+            x = x->level[i].forward;
+        }
+        if (traversed == rank) {
+            return x;
+        }
+    }
+    return NULL;
+}
+
+zset_iterator **
+zslGetRange(zset *zset, int start, int end) {
+    // 检查参数有效性
+    if (start < 0) start = 0;
+    if (end < start) {
+        // 如果end < start，返回空结果
+        zset_iterator **iter = malloc(sizeof(*iter));
+        iter[0] = NULL;
+        return iter;
+    }
+    
+    int rangelen = end - start + 1;
+    if (rangelen <= 0) {
+        // 处理边界情况
+        zset_iterator **iter = malloc(sizeof(*iter));
+        iter[0] = NULL;
+        return iter;
+    }
+    
+    zset_iterator **iter = malloc(sizeof(*iter)*rangelen);
+    for (int i = 0; i < rangelen; i++) {
+        iter[i] = malloc(sizeof(*iter[i]));
+    }
+    
+    skiplistNode *ln;
+    skiplist *zsl = zset->zsl;
+    
+    // 检查zset和zsl是否有效
+    if (!zset || !zsl || !zsl->header) {
+        // 如果zset无效，释放已分配的内存并返回空结果
+        for (int i = 0; i < rangelen; i++) {
+            free(iter[i]);
+        }
+        free(iter);
+        zset_iterator **empty_iter = malloc(sizeof(*empty_iter));
+        empty_iter[0] = NULL;
+        return empty_iter;
+    }
+    
+    /* Check if starting point is trivial, before doing log(N) lookup. */
+    if (zset->reverse) {
+        ln = zsl->tail;
+        if (start > 0 && zsl->length > 0) {
+            unsigned long rank = zsl->length - start;
+            if (rank > 0) {
+                ln = zslGetElementByRank(zsl, rank);
+            } else {
+                ln = NULL;
+            }
+        }
+    } else {
+        ln = zsl->header->level[0].forward;
+        if (start > 0 && zsl->length > 0) {
+            unsigned long rank = start + 1;
+            if (rank <= zsl->length) {
+                ln = zslGetElementByRank(zsl, rank);
+            } else {
+                ln = NULL;
+            }
+        }
+    }
+    
+    int i = 0;
+    while(rangelen > 0 && ln != NULL) {
+        iter[i]->ele = ln->ele;
+        iter[i]->score = ln->score;
+        i++;
+        rangelen--;
+        ln = zset->reverse ? ln->backward : ln->level[0].forward;
+    }
+    
+    // 设置结束标记
+    iter[i] = NULL;
+    return iter;
+}
+
+

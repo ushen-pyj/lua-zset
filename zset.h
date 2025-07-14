@@ -10,7 +10,7 @@ typedef uint64_t objid;
 
 typedef struct skiplistNode {
     objid ele;
-    double score;
+    int64_t score;
     struct skiplistNode *backward;
     struct skiplistLevel {
         struct skiplistNode *forward;
@@ -26,10 +26,17 @@ typedef struct skiplist {
 
 typedef struct zset {
     skiplist *zsl;
+    int reverse;
 } zset;
 
-zset *zsetCreate();
-skiplistNode *zslInsert(skiplist *zsl, double score, objid ele);
-skiplistNode *zslUpdateScore(skiplist *zsl, double curscore, objid ele, double newscore);
-int zslDelete(skiplist *zsl, double score, objid ele, skiplistNode **node);
+typedef struct zset_iterator {
+    objid ele;
+    int64_t score;
+} zset_iterator;
+
+zset *zsetCreate(int reverse);
+skiplistNode *zslInsert(skiplist *zsl, int64_t score, objid ele);
+skiplistNode *zslUpdateScore(skiplist *zsl, int64_t curscore, objid ele, int64_t newscore);
+int zslDelete(skiplist *zsl, int64_t score, objid ele, skiplistNode **node);
 void zslFree(zset *zset);
+zset_iterator **zslGetRange(zset *zset, int start, int end);
