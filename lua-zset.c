@@ -12,9 +12,15 @@ typedef struct lua_zset {
 int
 lfree(lua_State *L) {
     lua_zset *zset = luaL_checkudata(L, 1, zset_metatable);
-    // printf("free zset: %p\n", zset);
-    zslFree(zset->ob);
-    luaL_unref(L, LUA_REGISTRYINDEX, zset->score_table_ref);
+    if (zset->ob != NULL) {
+        zslFree(zset->ob);
+        zset->ob = NULL;
+    }
+    if (zset->score_table_ref != LUA_NOREF) {
+        int ref = zset->score_table_ref;
+        zset->score_table_ref = LUA_NOREF;
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    }
     return 0;
 }
 
@@ -117,20 +123,16 @@ int lrange(lua_State *L) {
     zset_iterator **iter = zslGetRange(zset->ob, start, end);
     lua_newtable(L);
     for (int i = 0; iter[i] != NULL; i++) {
-        lua_newtable(L); // 创建元素表
-        // key
+        lua_newtable(L);
         lua_pushstring(L, "key");
         lua_pushnumber(L, iter[i]->ele);
         lua_settable(L, -3);
-        // score
         lua_pushstring(L, "score");
         lua_pushnumber(L, iter[i]->score);
         lua_settable(L, -3);
-        // rank（全局排名，start+i+1）
         lua_pushstring(L, "rank");
         lua_pushnumber(L, start + i + 1);
         lua_settable(L, -3);
-        // 插入到结果表，下标从1开始
         lua_rawseti(L, -2, i + 1);
     }
     return 1;
@@ -156,8 +158,6 @@ int luaopen_zset(lua_State *L) {
     luaL_setfuncs(L, zset_methods, 0);
     lua_pushcfunction(L, lfree);
     lua_setfield(L, -2, "__gc");
-    lua_pushcfunction(L, lfree);
-    lua_setfield(L, -2, "__close");
     lua_pushstring(L, "protected");
     lua_setfield(L, -2, "__metatable");
     lua_pop(L, 1);

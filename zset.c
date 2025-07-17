@@ -53,6 +53,18 @@ _zslFreeNode(skiplistNode *node) {
     free(node);
 }
 
+void 
+_zslFree(skiplist *zsl) {
+    skiplistNode *node = zsl->header->level[0].forward, *next;
+    free(zsl->header);
+    while(node) {
+        next = node->level[0].forward;
+        _zslFreeNode(node);
+        node = next;
+    }
+    free(zsl);
+}
+
 int
 _objid_cmp(objid a, objid b) {
     return a - b;
@@ -76,8 +88,7 @@ zsetCreate(int reverse) {
 
 void
 zslFree(zset *zset) {
-    _zslFreeNode(zset->zsl->header);
-    free(zset->zsl);
+    _zslFree(zset->zsl);
     free(zset);
 }
 
@@ -235,10 +246,8 @@ skiplistNode* zslGetElementByRank(skiplist *zsl, unsigned long rank) {
 
 zset_iterator **
 zslGetRange(zset *zset, int start, int end) {
-    // 检查参数有效性
     if (start < 0) start = 0;
     if (end < start) {
-        // 如果end < start，返回空结果
         zset_iterator **iter = malloc(sizeof(*iter));
         iter[0] = NULL;
         return iter;
@@ -246,23 +255,20 @@ zslGetRange(zset *zset, int start, int end) {
     
     int rangelen = end - start + 1;
     if (rangelen <= 0) {
-        // 处理边界情况
         zset_iterator **iter = malloc(sizeof(*iter));
         iter[0] = NULL;
         return iter;
     }
-    
-    zset_iterator **iter = malloc(sizeof(*iter)*rangelen);
+
+    zset_iterator **iter = malloc(sizeof(*iter) * (rangelen + 1));
     for (int i = 0; i < rangelen; i++) {
         iter[i] = malloc(sizeof(*iter[i]));
     }
-    
+
     skiplistNode *ln;
     skiplist *zsl = zset->zsl;
     
-    // 检查zset和zsl是否有效
     if (!zset || !zsl || !zsl->header) {
-        // 如果zset无效，释放已分配的内存并返回空结果
         for (int i = 0; i < rangelen; i++) {
             free(iter[i]);
         }
@@ -271,8 +277,7 @@ zslGetRange(zset *zset, int start, int end) {
         empty_iter[0] = NULL;
         return empty_iter;
     }
-    
-    /* Check if starting point is trivial, before doing log(N) lookup. */
+
     if (zset->reverse) {
         ln = zsl->tail;
         if (start > 0 && zsl->length > 0) {
@@ -296,7 +301,7 @@ zslGetRange(zset *zset, int start, int end) {
     }
     
     int i = 0;
-    while(rangelen > 0 && ln != NULL) {
+    while (rangelen > 0 && ln != NULL) {
         iter[i]->ele = ln->ele;
         iter[i]->score = ln->score;
         i++;
@@ -304,7 +309,6 @@ zslGetRange(zset *zset, int start, int end) {
         ln = zset->reverse ? ln->backward : ln->level[0].forward;
     }
     
-    // 设置结束标记
     iter[i] = NULL;
     return iter;
 }
