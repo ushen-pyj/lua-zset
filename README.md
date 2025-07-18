@@ -9,16 +9,18 @@ local zset = require "zset"
 2. **创建有序集合**
 
 ```lua
-local zs = zset.create()  -- 默认升序
--- local zs = zset.create(1)  -- 传1为降序
+local zs = zset.create(1000)  -- 默认升序, 最大长度1000
+-- local zs = zset.create(1000，1)  -- 传1为降序, 最大长度1000
 ```
 
 3. **插入或更新元素分数**
 
 ```lua
+local zs = zset.create(2)
 zs:update(1001, 88)  -- 插入key为1001，分数为88
 zs:update(1002, 77)
-zs:update(1001, 99)  -- 更新1001的分数
+local remove_ele = zs:update(1003, 99) -- 超出长度被删除的key
+print(remove_ele) -- {1003}
 ```
 
 4. **获取元素分数**

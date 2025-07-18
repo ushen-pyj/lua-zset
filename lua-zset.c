@@ -26,9 +26,10 @@ lfree(lua_State *L) {
 
 int
 lcreate(lua_State *L) {
-    int reverse = luaL_optinteger(L, 1, 0);
+    int max_length = luaL_optinteger(L, 1, 0);
+    int reverse = luaL_optinteger(L, 2, 0);
     lua_zset *zset = lua_newuserdata(L, sizeof(lua_zset));
-    zset->ob = zsetCreate(reverse);
+    zset->ob = zsetCreate(max_length, reverse);
     lua_newtable(L);
     zset->score_table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
     luaL_getmetatable(L, zset_metatable);
@@ -69,7 +70,25 @@ int lupdate(lua_State *L) {
     lua_settable(L, -3);
     lua_pop(L, 1);
     
-    return 0;
+    lua_newtable(L);
+    int len = zslGetLength(zset->ob);
+    if (zset->ob->max_length > 0 && len > zset->ob->max_length) {
+        objid *remove_ele = zslDeleteRangeByRank(zset->ob->zsl, zset->ob->max_length + 1, len);
+        for (int i = 0; i < len - zset->ob->max_length; i++) {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, zset->score_table_ref);
+            lua_pushnumber(L, remove_ele[i]);
+            lua_pushnil(L);
+            lua_settable(L, -3);
+            lua_pop(L, 1);
+            
+            lua_pushinteger(L, i + 1);     
+            lua_pushnumber(L, remove_ele[i]); 
+            lua_settable(L, -3);    
+        }
+        free(remove_ele);
+    }
+ 
+    return 1;
 }
 
 int lgetscore(lua_State *L) {

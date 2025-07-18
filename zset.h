@@ -27,6 +27,7 @@ typedef struct skiplist {
 typedef struct zset {
     skiplist *zsl;
     int reverse;
+    int max_length;
 } zset;
 
 typedef struct zset_iterator {
@@ -34,9 +35,11 @@ typedef struct zset_iterator {
     int64_t score;
 } zset_iterator;
 
-zset *zsetCreate(int reverse);
+zset *zsetCreate(int max_length, int reverse);
 skiplistNode *zslInsert(skiplist *zsl, int64_t score, objid ele);
 skiplistNode *zslUpdateScore(skiplist *zsl, int64_t curscore, objid ele, int64_t newscore);
 int zslDelete(skiplist *zsl, int64_t score, objid ele, skiplistNode **node);
 void zslFree(zset *zset);
 zset_iterator **zslGetRange(zset *zset, int start, int end);
+objid *zslDeleteRangeByRank(skiplist *zsl, unsigned int start, unsigned int end);
+int zslGetLength(zset *zset);

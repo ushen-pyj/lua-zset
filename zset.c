@@ -79,10 +79,11 @@ int _zslRandomLevel(void) {
 }
 
 zset *
-zsetCreate(int reverse) {
+zsetCreate(int max_length, int reverse) {
     zset *zset = malloc(sizeof(*zset));
     zset->zsl = _zslCreate();
     zset->reverse = reverse;
+    zset->max_length = max_length;
     return zset;
 }
 
@@ -244,6 +245,35 @@ skiplistNode* zslGetElementByRank(skiplist *zsl, unsigned long rank) {
     return NULL;
 }
 
+objid *zslDeleteRangeByRank(skiplist *zsl, unsigned int start, unsigned int end) {
+    skiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
+    unsigned long traversed = 0, removed = 0;
+    int i;
+
+    x = zsl->header;
+    for (i = zsl->level-1; i >= 0; i--) {
+        while (x->level[i].forward && (traversed + x->level[i].span) < start) {
+            traversed += x->level[i].span;
+            x = x->level[i].forward;
+        }
+        update[i] = x;
+    }
+
+    traversed++;
+    x = x->level[0].forward;
+    objid *remove_ele = malloc(sizeof(objid) * (end - start + 1));
+    while (x && traversed <= end) {
+        skiplistNode *next = x->level[0].forward;
+        remove_ele[removed] = x->ele;
+        _zslDeleteNode(zsl, x, update);
+        _zslFreeNode(x);
+        removed++;
+        traversed++;
+        x = next;
+    }
+    return remove_ele;
+}
+
 zset_iterator **
 zslGetRange(zset *zset, int start, int end) {
     if (start < 0) start = 0;
@@ -313,4 +343,7 @@ zslGetRange(zset *zset, int start, int end) {
     return iter;
 }
 
+int zslGetLength(zset *zset) {
+    return zset->zsl->length;
+}
 
