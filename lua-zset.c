@@ -26,8 +26,8 @@ lfree(lua_State *L) {
 
 int
 lcreate(lua_State *L) {
+    int reverse = luaL_optinteger(L, 1, 0);
     lua_zset *zset = lua_newuserdata(L, sizeof(lua_zset));
-    int reverse = luaL_optinteger(L, 2, 0);
     zset->ob = zsetCreate(reverse);
     lua_newtable(L);
     zset->score_table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
